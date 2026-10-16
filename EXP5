@@ -1,0 +1,36 @@
+#EXP5
+# !pip install -q crewai
+import os
+from getpass import getpass
+from crewai import Crew,Agent,Task,LLM
+
+os.environ["GEMINI_API_KEY"]=getpass("Enter gemini API key: ")
+llm=LLM(model="gemini/gemini-3.6-flash",api_key=os.environ["GEMINI_API_KEY"])
+
+source=input("enter starting point:")
+destination=input("enter destination:")
+people=input("Enter number of travellers:")
+budget=input("Enter budget:")
+interest=input("Enter interest:")
+
+info=f"""
+Source={source}
+Destination={destination},
+Travelers={people},
+Budget=Rs.{budget},
+Interest={interest}
+"""
+
+transport=Agent(role="Transport Expert", goal="Suggest affordable transportation",backstory="You are a travel transport expert",llm=llm)
+hotel=Agent(role="Hotel Expert",goal="suggest affordable hotels",backstory="You are a hotel expert",llm=llm)
+activities=Agent(role="Activity Expert",goal="Suggest Activities",backstory="You are a local travel guide",llm=llm)
+planner=Agent(role="Travel Planner",goal="Create a complete budget friendly itinery",backstory="You are a travel planner",llm=llm)
+
+t1=Task(description=f"Suggest affordable transport for: /n {info}",agent=transport,expected_output="Transport recommendation and cost")
+t2=Task(description=f"Suggest affordable hotels for: /n {info}",agent=hotel,expected_output="hotel recommendation and cost")
+t3=Task(description=f"Suggest activities for: /n {info}",agent=activities,expected_output="Activities and estimated cost")
+t4=Task(description=f"Create a complete itinerary for: /n {info}",agent=planner,expected_output="Complete itinerary")
+
+crew=Crew(agents=[transport,hotel,activities,planner],tasks=[t1,t2,t3,t4])
+results=crew.kickoff()
+print(results)
