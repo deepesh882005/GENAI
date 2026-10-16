@@ -1,0 +1,32 @@
+#EXP1
+# !pip install -q transformers datasets rouge-score sentencepiece
+import torch 
+import pandas as pd
+from datasets import load_dataset
+from transformers import AutoTokenizer,AutoModelForSeq2SeqLM
+from rouge_score import rouge_scorer
+
+dataset=load_dataset("S3IC/cnn_dailymail",split="train[:5]")
+MODEL_NAME="facebook/bart-large-cnn"
+tokenizer=AutoTokenizer.from_pretrained(MODEL_NAME)
+model=AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME)
+device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model.to(device)
+scorer=rouge_scorer.RougeScorer(["rouge1","rouge2","rougeL"],use_stemmer=True)
+
+
+results=[]
+for samples in dataset:
+  article,reference=samples["article"],samples["highlights"]
+  inputs=tokenizer(article,max_length=512,truncation=True,return_tensors="pt")
+  summary_ids=model.generate(**inputs,max_new_tokens=MAX_SUMMARY_LENGTH,min_new_tokens=20)
+  generated=tokenizer.decode(summary_ids[0],skip_special_tokens=True)
+  scores=scorer.score(reference,generated)
+  results.append({"Generated":generated,"Reference":reference,
+                  "Rouge-1":scores["rouge1"].fmeasure,
+                  "Rouge-2":scores["rouge2"].fmeasure,
+                  "Rouge-L":scores["rougeL"].fmeasure
+                  })
+df=pd.DataFrame(results)
+print(df[["Rouge-1","Rouge-2","Rouge-L"]])
+print("/n Average ROUGE:",df[["Rouge-1","Rouge-2","Rouge-L"]].mean())
