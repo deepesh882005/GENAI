@@ -1,0 +1,51 @@
+#EXP3
+
+# !pip install biopython transformers scikit-learn sentencepiece
+from Bio import Entrez
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+from transformers import AutoTokenizer,AutoModelForSeq2SeqLM
+import torch
+
+Entrez.email="deepesh882005@gmail.com"
+
+def get_pubmed_articles(query,number=5):
+  search=Entrez.esearch(db="pubmed",term=query,retmax=number)
+  ids=Entrez.read(search)["IdList"]
+  if not ids: return []
+  fetch=Entrez.efetch(db="pubmed",id=ids,rettype="abstract",retmode="text")
+  text=fetch.read().split("\n\n")
+  return [t.strip() for t in text if len(t.strip())>100][:number]
+
+model_name="google/flan-t5-small"
+tokenizer=AutoTokenizer.from_pretrained(model_name)
+model=AutoModelForSeq2SeqLM.from_pretrained(model_name)
+device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model=model.to(device)
+
+def retrieve_documents(question,documents,top_k=5):
+  vectorizer=TfidfVectorizer(stop_words="english")
+  document_vectors=vectorizer.fit_transform(documents)
+  question_vector=vectorizer.transform([question])
+  score=cosine_similarity(question_vector,document_vectors)[0]
+  top_ids=score.argsort()[-top_k:][::-1]
+  return [documents[i] for i in top_ids]
+
+def generate_answer(question,documents):
+  context="\n\n".join(documents)
+  prompt=f"""
+  info:
+  {context}
+  question:
+  {question}
+  Answer briefly
+  """
+  inputs=tokenizer(prompt,return_tensors="pt",truncation=True).to(device)
+  outputs=model.generate(**inputs,max_new_tokens=300)
+  return tokenizer.decode(outputs[0],skip_special_tokens=True)
+
+question=input("what is ur questions:")
+docs=get_pubmed_articles(question)
+retrieved_docs=retrieve_documents(question,docs)
+answer=generate_answer(question,retrieved_docs)
+print(answer)
