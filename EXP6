@@ -1,0 +1,50 @@
+# Install libraries
+!pip uninstall -y transformers
+!pip install transformers==4.46.3
+
+!pip install -q transformers==4.46.3 peft==0.13.2 datasets accelerate
+
+from datasets import load_dataset
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, TrainingArguments, Trainer
+from peft import LoraConfig, get_peft_model, TaskType
+
+# 1. Load small AG News subset
+data = load_dataset("fancyzhx/ag_news")
+train, test = data["train"].select(range(100)), data["test"].select(range(20))
+
+# 2. Tokenizer
+tok = AutoTokenizer.from_pretrained("distilbert-base-uncased")
+def tokenize(x): return tok(x["text"], padding="max_length", truncation=True, max_length=64)
+train, test = train.map(tokenize, batched=True), test.map(tokenize, batched=True)
+
+# 3. Base model + LoRA
+model = AutoModelForSequenceClassification.from_pretrained("distilbert-base-uncased", num_labels=4)
+lora_cfg = LoraConfig(r=4, lora_alpha=8, lora_dropout=0.1, target_modules=["q_lin","v_lin"], task_type=TaskType.SEQ_CLS)
+model = get_peft_model(model, lora_cfg)
+model.print_trainable_parameters()
+
+# 4. Training
+args = TrainingArguments(output_dir="result", num_train_epochs=1, per_device_train_batch_size=16,
+                         learning_rate=2e-4, save_strategy="no", report_to="none")
+trainer = Trainer(model=model, args=args, train_dataset=train, tokenizer=tok)
+trainer.train()
+
+# 5. Prediction
+pred = trainer.predict(test).predictions.argmax(axis=1)
+classes = {0:"World",1:"Sports",2:"Business",3:"Technology"}
+
+# 6. Show results
+for i in range(5):
+    print(f"\nText: {test[i]['text']}")
+    print("Actual:", classes[test[i]['label']])
+    print("Predicted:", classes[pred[i]])
+
+
+
+
+
+
+
+
+
+
