@@ -1,0 +1,50 @@
+#EXP4
+# !pip install faiss-cpu
+import faiss
+from sentence_transformers import SentenceTransformer
+from transformers import pipeline
+
+docs=[
+    "Case1: A contract dispute aros ebetween two parties. The court held that the agreement was valid because both parties had clearly accepted its terms",
+    "Case2: A person was accused of negligence after causing an accident.The court explained that negligence requires a duty of care,a breach of that duty, and resulting harm. ",
+    "Case3: A tenant challenged an eviction notice.The court held that the landlord must follow the applicable legal procedure before evicting the tenant."
+]
+
+embedding_model=SentenceTransformer("all-MiniLM-L6-V2")
+embeddings=embedding_model.encode(docs)
+
+dimensions= document_embeddings.hape[1]
+index=faiss.IndexFlatL2(dimensions)
+index.add(document_embeddings)
+
+generator=pipeline("text-generation",model="google/flan-t5-small")
+
+question=input("ehat is ur question")
+question_embeddings=embedding_model.encode([question])
+distance,indices=index.search(question_embeddings,k=2)
+retrieved_documents=[documents[i] for i in indices[0]]
+
+context="\n".join(retrieved_documents)
+print("Choose your level of summary:/n1.brief/n2.Moderate/n3.Detailed")
+level=input()
+if level==1:
+  isntruction="Answer in 1 or 2 words"
+elif level==2:
+  instructions="Give a short paragraph explaining the main facts and decisions"
+else:
+  intructions="Give a deatiled explaination of the facts, legal procedings and court decisions"
+
+prompt="""
+You are a legal document analysis assistant.
+Use only the retrieved legal content below.
+Retrieved Legal Content:
+{context}
+Question:
+{question}
+Instructions:
+{instruction}
+Do not invent facts.
+If the information is insufficient, say so.
+"""
+answer=generator(prompt,max_new_tokens=150)[0]["generated_text"]
+print(answer)
