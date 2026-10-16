@@ -1,0 +1,16 @@
+#EXP2
+# !pip install transformers pandas --quiet
+import pandas as pd
+from transformers import pipeline
+df=pd.read_csv('/content/datasets_genai/IMDB-Dataset.csv',engine='python',on_bad_lines="skip")
+print(df.head())
+
+sentimental_analyzer=pipeline("sentiment-analysis",model="distilbert-base-uncased-finetuned-sst-2-english")
+
+for i in range(5):
+  review=df.iloc[i]['review']
+  prediction=sentimental_analyzer(review[:512])[0]
+  print("review",i+1)
+  print("Actual Sentiment:",df.iloc[i]['sentiment'])
+  print("Predicted Sentiment:",prediction['label'])
+  print("confidence:",prediction['score'])
